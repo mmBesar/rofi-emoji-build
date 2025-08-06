@@ -72,9 +72,12 @@ jobs:
             apt-get install -y rofi-dev || apt-get install -y rofi libcairo2-dev libglib2.0-dev libpango1.0-dev
             apt-get install -y libglib2.0-dev libcairo2-dev libpango1.0-dev libxkbcommon-dev libxcb1-dev
             
+            # Create source directory and copy files (excluding existing build dirs)
             mkdir -p rofi-emoji-${{ steps.version.outputs.version }}
-            cp -r * rofi-emoji-${{ steps.version.outputs.version }}/ || true
-            cp -r /workspace/debian rofi-emoji-${{ steps.version.outputs.version }}/
+            find . -maxdepth 1 -name '*.c' -o -name '*.h' -o -name 'configure.*' -o -name 'Makefile.*' -o -name '*.am' -o -name '*.in' -o -name 'src' -o -name 'data' -o -name 'README*' -o -name 'LICENSE*' -o -name 'AUTHORS' -o -name 'COPYING' | xargs -I {} cp -r {} rofi-emoji-${{ steps.version.outputs.version }}/
+            
+            # Copy debian directory from workspace
+            cp -r debian rofi-emoji-${{ steps.version.outputs.version }}/
             cd rofi-emoji-${{ steps.version.outputs.version }}
             
             sed -i '1s/.*/rofi-emoji (${{ steps.version.outputs.version }}-1~${{ matrix.debian_version }}) unstable; urgency=medium/' debian/changelog
