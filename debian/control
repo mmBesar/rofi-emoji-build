@@ -1,0 +1,38 @@
+Source: rofi-emoji
+Section: x11
+Priority: optional
+Maintainer: mmBesar <mbesar@proton.me>
+Build-Depends: debhelper-compat (= 13),
+               autoconf,
+               automake,
+               libtool,
+               libtool-bin,
+               pkg-config,
+               libglib2.0-dev,
+               libcairo2-dev,
+               libpango1.0-dev,
+               libxkbcommon-dev,
+               libxcb1-dev,
+               rofi-dev | rofi (<< 2.0)
+Standards-Version: 4.6.0
+Homepage: https://github.com/Mange/rofi-emoji
+
+Package: rofi-emoji
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, rofi, xclip | xsel | wl-clipboard
+Recommends: xclip (>= 0.12), wl-clipboard
+Suggests: xdotool, wtype
+Description: Emoji selector plugin for Rofi
+ An emoji selector plugin for Rofi that copies the selected emoji to the
+ clipboard and can insert it directly into applications.
+ .
+ Features:
+  * Search emojis by name, keywords, or category
+  * Copy emoji to clipboard
+  * Insert emoji directly into focused window
+  * Filter by emoji groups and subgroups
+  * Customizable output format
+  * Support for both X11 and Wayland
+ .
+ The plugin integrates seamlessly with Rofi and can be used with:
+ rofi -modi emoji -show emoji
