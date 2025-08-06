@@ -54,11 +54,21 @@ jobs:
         echo "version=$VERSION" >> $GITHUB_OUTPUT
         echo "Building version: $VERSION from tag: $TAG_NAME"
 
+    - name: Store debian files
+      run: |
+        # Save debian directory before switching to upstream
+        cp -r debian /tmp/debian-packaging
+        
     - name: Checkout upstream tag
       run: |
         git checkout upstream
         git checkout ${{ steps.version.outputs.tag_name }}
         echo "Checked out tag: ${{ steps.version.outputs.tag_name }}"
+        
+    - name: Restore debian files
+      run: |
+        # Copy back the debian packaging files
+        cp -r /tmp/debian-packaging debian
 
     - name: Build package
       run: |
