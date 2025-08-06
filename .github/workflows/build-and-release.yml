@@ -110,8 +110,8 @@ jobs:
             cp -r /workspace/debian rofi-emoji-\${VERSION}/
             cd rofi-emoji-\${VERSION}
             
-            # Create debian/control
-            cat > debian/control << 'CONTROL_EOF'
+            # Remove the debian/control creation since we're using existing files
+            # The debian/ directory is copied from the repo
 Source: rofi-emoji
 Section: x11
 Priority: optional
@@ -188,10 +188,8 @@ License: MIT
  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  SOFTWARE.
-COPYRIGHT_EOF
-
-            # Create debian/rules for autotools
-            cat > debian/rules << 'RULES_EOF'
+            # Remove the debian/rules creation since we're using existing files  
+            # The debian/ directory is copied from the repo
 #!/usr/bin/make -f
 
 %:
