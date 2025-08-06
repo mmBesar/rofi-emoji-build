@@ -1,0 +1,18 @@
+#!/usr/bin/make -f
+
+%:
+	dh $@ --with autoreconf
+
+override_dh_auto_configure:
+	autoreconf -fiv
+	./configure --prefix=/usr
+
+override_dh_auto_build:
+	$(MAKE)
+
+override_dh_auto_install:
+	$(MAKE) DESTDIR=$(CURDIR)/debian/rofi-emoji install
+
+override_dh_auto_clean:
+	[ ! -f Makefile ] || $(MAKE) distclean
+	dh_auto_clean
