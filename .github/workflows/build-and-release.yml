@@ -59,7 +59,12 @@ jobs:
         echo "version=$VERSION" >> $GITHUB_OUTPUT
         echo "Building version: $VERSION from tag: $TAG_NAME"
         
-    - name: Build in Debian container
+    - name: Checkout upstream branch and tag
+      run: |
+        git checkout upstream
+        git checkout ${{ steps.version.outputs.tag_name }}
+        echo "Checked out tag: ${{ steps.version.outputs.tag_name }} from upstream branch"
+        git log -1 --oneline
       env:
         TAG_NAME: ${{ steps.version.outputs.tag_name }}
         VERSION: ${{ steps.version.outputs.version }}
@@ -71,14 +76,11 @@ jobs:
         
         echo "Building rofi-emoji version: $VERSION from tag: $TAG_NAME"
         
-        # Fix Git security issue
-        git config --global --add safe.directory /workspace
-        
         # Update package lists
         apt-get update
         
-        # Install build tools
-        apt-get install -y devscripts build-essential git curl wget
+        # Install build tools (no git needed - we're building from local files)
+        apt-get install -y devscripts build-essential
         
         # Install rofi-emoji build dependencies
         apt-get install -y autoconf automake libtool-bin libtool pkg-config
@@ -94,16 +96,9 @@ jobs:
         apt-get install -y libglib2.0-dev libcairo2-dev libpango1.0-dev
         apt-get install -y libxkbcommon-dev libxcb1-dev
         
-        # Switch to upstream branch and checkout the specific tag
-        git checkout upstream
-        git checkout $TAG_NAME
-        echo "Checked out tag: $TAG_NAME from upstream branch"
-        git log -1 --oneline
-        
-        # Create proper source structure for Debian packaging
+        # We're already in the correct checkout - just create source structure
         mkdir -p rofi-emoji-${VERSION}
         cp -r * rofi-emoji-${VERSION}/ || true
-        cp -r .* rofi-emoji-${VERSION}/ 2>/dev/null || true
         
         # Copy our debian directory to the source
         cp -r /workspace/debian rofi-emoji-${VERSION}/
