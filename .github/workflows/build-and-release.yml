@@ -71,6 +71,9 @@ jobs:
         
         echo "Building rofi-emoji version: $VERSION from tag: $TAG_NAME"
         
+        # Fix Git security issue
+        git config --global --add safe.directory /workspace
+        
         # Update package lists
         apt-get update
         
