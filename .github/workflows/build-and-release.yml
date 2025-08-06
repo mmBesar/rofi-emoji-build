@@ -1,4 +1,3 @@
-# .github/workflows/build-and-release.yml
 name: Build and Release rofi-emoji
 
 on:
@@ -14,7 +13,6 @@ on:
 
 permissions:
   contents: write
-  packages: write
 
 jobs:
   build:
@@ -39,14 +37,11 @@ jobs:
       run: |
         if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ inputs.tag_name }}" ]; then
           TAG_NAME="${{ inputs.tag_name }}"
-          echo "Using manually specified tag: $TAG_NAME"
         elif [ "${{ github.event_name }}" = "push" ] && [[ "${{ github.ref }}" == refs/tags/* ]]; then
           TAG_NAME="${{ github.ref_name }}"
-          echo "Using pushed tag: $TAG_NAME"
         else
           git fetch origin upstream:upstream || true
           TAG_NAME=$(git tag --sort=-version:refname | head -1)
-          echo "Using latest tag: $TAG_NAME"
         fi
         
         if [ -z "$TAG_NAME" ]; then
@@ -58,97 +53,45 @@ jobs:
         echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
         echo "version=$VERSION" >> $GITHUB_OUTPUT
         echo "Building version: $VERSION from tag: $TAG_NAME"
-        
-    - name: Checkout upstream branch and tag
+
+    - name: Checkout upstream tag
       run: |
         git checkout upstream
         git checkout ${{ steps.version.outputs.tag_name }}
-        echo "Checked out tag: ${{ steps.version.outputs.tag_name }} from upstream branch"
-        git log -1 --oneline
-      env:
-        TAG_NAME: ${{ steps.version.outputs.tag_name }}
-        VERSION: ${{ steps.version.outputs.version }}
-        DEBIAN_VERSION: ${{ matrix.debian_version }}
+        echo "Checked out tag: ${{ steps.version.outputs.tag_name }}"
+
+    - name: Build package
       run: |
-        cat > build-script.sh << 'SCRIPT_EOF'
-        #!/bin/bash
-        set -e
-        
-        echo "Building rofi-emoji version: $VERSION from tag: $TAG_NAME"
-        
-        # Update package lists
-        apt-get update
-        
-        # Install build tools (no git needed - we're building from local files)
-        apt-get install -y devscripts build-essential
-        
-        # Install rofi-emoji build dependencies
-        apt-get install -y autoconf automake libtool-bin libtool pkg-config
-        
-        # Install rofi development files and dependencies
-        apt-get install -y rofi-dev || {
-          echo 'rofi-dev not available, installing rofi and trying to get dev files'
-          apt-get install -y rofi
-          apt-get install -y libcairo2-dev libglib2.0-dev libpango1.0-dev
-        }
-        
-        # Additional dependencies for rofi plugin development
-        apt-get install -y libglib2.0-dev libcairo2-dev libpango1.0-dev
-        apt-get install -y libxkbcommon-dev libxcb1-dev
-        
-        # We're already in the correct checkout - just create source structure
-        mkdir -p rofi-emoji-${VERSION}
-        cp -r * rofi-emoji-${VERSION}/ || true
-        
-        # Copy our debian directory to the source
-        cp -r /workspace/debian rofi-emoji-${VERSION}/
-        cd rofi-emoji-${VERSION}
-        
-        # Update changelog with proper version and debian version
-        sed -i "1s/.*/rofi-emoji (${VERSION}-1~${DEBIAN_VERSION}) unstable; urgency=medium/" debian/changelog
-        
-        # Make sure debian/rules is executable
-        chmod +x debian/rules
-        
-        # Run autoreconf to generate configure script
-        echo "Running autoreconf..."
-        autoreconf -fiv
-        
-        # Test configuration
-        echo "Testing configure..."
-        ./configure --prefix=/usr
-        
-        # Clean for package build
-        make clean || true
-        
-        # Build the package
-        echo "Building Debian package..."
-        dpkg-buildpackage -us -uc -b
-        
-        # Move built packages
-        cd ..
-        mkdir -p /workspace/packages/${DEBIAN_VERSION}
-        mv *.deb /workspace/packages/${DEBIAN_VERSION}/ 2>/dev/null || true
-        mv *.changes /workspace/packages/${DEBIAN_VERSION}/ 2>/dev/null || true
-        mv *.buildinfo /workspace/packages/${DEBIAN_VERSION}/ 2>/dev/null || true
-        
-        # List what was built
-        echo "Built packages:"
-        ls -la /workspace/packages/${DEBIAN_VERSION}/
-        SCRIPT_EOF
-        
-        chmod +x build-script.sh
-        
-        docker run --rm \
-          -v $PWD:/workspace \
-          -w /workspace \
-          -e TAG_NAME="$TAG_NAME" \
-          -e VERSION="$VERSION" \
-          -e DEBIAN_VERSION="$DEBIAN_VERSION" \
+        docker run --rm -v $PWD:/workspace -w /workspace \
           debian:${{ matrix.debian_version }} \
-          /workspace/build-script.sh
+          bash -c "
+            set -e
+            apt-get update
+            apt-get install -y devscripts build-essential
+            apt-get install -y autoconf automake libtool-bin libtool pkg-config
+            apt-get install -y rofi-dev || apt-get install -y rofi libcairo2-dev libglib2.0-dev libpango1.0-dev
+            apt-get install -y libglib2.0-dev libcairo2-dev libpango1.0-dev libxkbcommon-dev libxcb1-dev
+            
+            mkdir -p rofi-emoji-${{ steps.version.outputs.version }}
+            cp -r * rofi-emoji-${{ steps.version.outputs.version }}/ || true
+            cp -r /workspace/debian rofi-emoji-${{ steps.version.outputs.version }}/
+            cd rofi-emoji-${{ steps.version.outputs.version }}
+            
+            sed -i '1s/.*/rofi-emoji (${{ steps.version.outputs.version }}-1~${{ matrix.debian_version }}) unstable; urgency=medium/' debian/changelog
+            chmod +x debian/rules
+            
+            autoreconf -fiv
+            ./configure --prefix=/usr
+            make clean || true
+            dpkg-buildpackage -us -uc -b
+            
+            cd ..
+            mkdir -p /workspace/packages/${{ matrix.debian_version }}
+            mv *.deb /workspace/packages/${{ matrix.debian_version }}/ || true
+            ls -la /workspace/packages/${{ matrix.debian_version }}/
+          "
     
-    - name: Upload packages as artifacts
+    - name: Upload packages
       uses: actions/upload-artifact@v4
       with:
         name: rofi-emoji-${{ matrix.debian_version }}
@@ -166,8 +109,8 @@ jobs:
       with:
         fetch-depth: 0
 
-    - name: Determine version for release
-      id: release_version
+    - name: Get version
+      id: version
       run: |
         if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ inputs.tag_name }}" ]; then
           TAG_NAME="${{ inputs.tag_name }}"
@@ -180,81 +123,37 @@ jobs:
         VERSION=${TAG_NAME#v}
         echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
         echo "version=$VERSION" >> $GITHUB_OUTPUT
-        echo "Release version: $VERSION from tag: $TAG_NAME"
         
-    - name: Download all artifacts
+    - name: Download packages
       uses: actions/download-artifact@v4
       with:
         merge-multiple: true
         path: release-packages
         
-    - name: List downloaded packages
-      run: |
-        echo "Downloaded packages:"
-        find release-packages -name "*.deb" -type f
-        
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
-        tag_name: ${{ steps.release_version.outputs.tag_name }}
-        name: rofi-emoji ${{ steps.release_version.outputs.version }} - Debian Packages
+        tag_name: ${{ steps.version.outputs.tag_name }}
+        name: rofi-emoji ${{ steps.version.outputs.version }}
         body: |
-          ## 🎯 rofi-emoji ${{ steps.release_version.outputs.version }} - Multi-Debian Support
+          ## rofi-emoji ${{ steps.version.outputs.version }} - Debian Packages
           
-          Emoji selector plugin for Rofi with clipboard and insertion support.
-          Built from upstream tag [\`${{ steps.release_version.outputs.tag_name }}\`](https://github.com/Mange/rofi-emoji/releases/tag/${{ steps.release_version.outputs.tag_name }}).
+          Emoji selector plugin for Rofi. Built from upstream tag ${{ steps.version.outputs.tag_name }}.
           
-          ### ✨ Features:
-          - 🔍 **Search emojis** by name, keywords, or category  
-          - 📋 **Copy to clipboard** with xclip/xsel/wl-clipboard support
-          - ⌨️  **Direct insertion** into focused applications
-          - 🏷️  **Filter by groups** (@symbols) and subgroups (#mammal)
-          - 🎨 **Customizable format** and theming
-          - 🖥️  **X11 and Wayland** compatible
-          
-          ### 📦 Installation:
-          
-          Download the appropriate `.deb` file for your Debian version:
+          ### Installation:
+          Download the appropriate `.deb` file:
           - **Debian 12 (Bookworm)**: `rofi-emoji_*~bookworm*_amd64.deb`
           - **Debian 13 (Trixie)**: `rofi-emoji_*~trixie*_amd64.deb`  
-          - **Debian Sid (Unstable)**: `rofi-emoji_*~sid*_amd64.deb`
+          - **Debian Sid**: `rofi-emoji_*~sid*_amd64.deb`
           
-          **Install with apt:**
           ```bash
           sudo apt install ./rofi-emoji_*.deb
           ```
           
-          **Or with dpkg:**
+          ### Usage:
           ```bash
-          sudo dpkg -i rofi-emoji_*.deb
-          sudo apt-get install -f  # Fix any dependencies
-          ```
-          
-          ### 🚀 Usage:
-          ```bash
-          # Basic emoji selector
           rofi -modi emoji -show emoji
-          
-          # With custom keybind for copy (Ctrl+C)
-          rofi -modi emoji -show emoji -kb-custom-1 Ctrl+c
-          
-          # Copy mode (no insertion)
-          rofi -modi emoji -show emoji -emoji-mode copy
           ```
-          
-          ### 📋 Dependencies:
-          - **Required**: `rofi`
-          - **Clipboard**: `xclip` OR `xsel` OR `wl-clipboard` 
-          - **Insertion**: `xdotool` (X11) OR `wtype` (Wayland)
-          
-          ### 🔗 Links:
-          - **Upstream**: [Mange/rofi-emoji](https://github.com/Mange/rofi-emoji)
-          - **Documentation**: [Plugin Usage Guide](https://github.com/Mange/rofi-emoji#usage)
-          - **Rofi**: [davatorium/rofi](https://github.com/davatorium/rofi)
-          
-          ---
-          **Built automatically from upstream** • Compatible with Debian 12, 13, and Sid
         files: release-packages/*.deb
-        prerelease: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
